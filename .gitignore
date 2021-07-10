@@ -1,0 +1,12 @@
+*.env
+*.jar
+ops.json
+banned*.json
+json.sqlite
+server.properties
+usercache.json
+whitelist.json
+eula.txt
+world/
+logs/
+node_modules/
