@@ -17,6 +17,7 @@
 ### 🏠 [Homepage](https://github.com/ProtoSpoof/craft-messenger#readme)
 
 ### ✨ [Demo](https://github.com/ProtoSpoof/craft-messenger/blob/main/demo.gif)
+
 ![](https://github.com/ProtoSpoof/craft-messenger/blob/main/demo.gif)
 
 ## Install
@@ -27,8 +28,10 @@ npm install
 
 ## Usage
 
+Move CraftMessenger.js to the folder containing the minecraft server jar and run
+
 ```sh
-a
+node CraftMessenger.js
 ```
 
 ## Author
