@@ -17,6 +17,7 @@
 ### 🏠 [Homepage](https://github.com/ProtoSpoof/craft-messenger#readme)
 
 ### ✨ [Demo](https://github.com/ProtoSpoof/craft-messenger/blob/main/demo.gif)
+![](https://github.com/ProtoSpoof/craft-messenger/blob/main/demo.gif)
 
 ## Install
 
