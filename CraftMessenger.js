@@ -3,13 +3,17 @@ const { Client, MessageEmbed } = require('discord.js');
 const { spawn } = require('child_process');
 const getUUID = require('minecraft-uuid-cache');
 
+console.log(process.env.API_KEY);
+
 var client = new Client();
 
-var mcChannel = null;
+var mcChatChannel = null;
+var mcCommandsChannel = null;
 var mcLoaded = false;
 
 // Start the minceraft server
 var mcServer = spawn('java -Xmx3G -Xms3G -jar *.jar nogui', {
+	cwd:'../server/',
 	stdio: [null, null, null],
 	shell: true,
 });
@@ -18,29 +22,26 @@ var mcServer = spawn('java -Xmx3G -Xms3G -jar *.jar nogui', {
 mcServer.stdout.on('data', (data) => {
 	process.stdout.write((data = data.toString()));
 
-	if (!mcChannel) return;
+	if (!mcChatChannel && !mcCommandsChannel) return;
 
 	// Prune timestamp
 	data = data.substring(data.indexOf(']') + 2);
 	var dataType = data.substring(0, data.indexOf(':'));
 	var dataContent = data.substring(data.indexOf(':') + 2);
 
-	// We only care about server info that has this type
+	// We only care about server info that has this type (generally)
 	if (!dataType.includes('[Server thread/INFO]')) return;
 
 	if (!mcLoaded) return (mcLoaded = dataContent.startsWith('Done'));
 
-	// Empty server
-	if (dataContent.startsWith('No player was found')) return;
-
-	// This indicates a system message for audit purposes afaict
-	if (dataContent.charAt(0) == '[') return;
+	if (isCommandChatData(dataContent))
+		return mcCommandsChannel.send(new MessageEmbed().setColor('#0000aa').setDescription(dataContent));
 
 	// These are always chat messages sent by players always send these to discord
 	if (dataContent.charAt(0) == '<') {
 		let username = dataContent.substring(1, dataContent.indexOf('>'));
 		return getUUID(username).then((uuid) => {
-			return mcChannel.send(
+			return mcChatChannel.send(
 				new MessageEmbed()
 					.setColor('#aa00aa')
 					.setAuthor(
@@ -53,20 +54,16 @@ mcServer.stdout.on('data', (data) => {
 		});
 	}
 
-	// Ignore system messages about logging in and out
-	if (dataContent.includes('logged in with entity id') || dataContent.includes('lost connection:')) return;
-
-	// Ignore death messages for things like villagers
-	if (dataContent.includes('ServerLevel[')) return;
-
 	// Everything else should be a message seen by players
-	return mcChannel.send(new MessageEmbed().setColor('#00aa00').setDescription(dataContent));
+	return mcChatChannel.send(new MessageEmbed().setColor('#00aa00').setDescription(dataContent));
 });
 
 // Terminate app once server closes
 mcServer.on('exit', () => {
 	// Tell discord the server stopped
-	mcChannel.send(new MessageEmbed().setColor('#aa0000').setDescription('The server stopped... Someone tell someone'));
+	mcChatChannel.send(
+		new MessageEmbed().setColor('#aa0000').setDescription('The server stopped... Someone tell someone')
+	);
 	setTimeout(() => {
 		process.exit(1);
 	}, 2000);
@@ -84,20 +81,50 @@ client.on('message', async (message) => {
 	// Ignore bot messages
 	if (message.author.bot) return;
 
-	if (message.channel == mcChannel) {
-		mcServer.stdin.write(
-			'/tellraw @a ["",{"text":"[Discord]","color":"dark_purple"}," <' +
-				message.author.username +
-				'> ","' +
-				message.cleanContent +
-				'"]\n'
-		);
+	if (message.channel == mcChatChannel) {
+		handleChat(message);
+	} else if (message.channel == mcCommandsChannel) {
+		handleCommands(message);
 	}
 });
 
 client.on('ready', () => {
 	console.log(`${client.user.tag} is ready`);
-	mcChannel = client.channels.cache.get(process.env.CHANNEL_ID);
+	mcChatChannel = client.channels.cache.get(`${process.env.CHAT_CHANNEL_ID}`);
+	mcCommandsChannel = client.channels.cache.get(`${process.env.COMMANDS_CHANNEL_ID}`);
+	console.log(mcChatChannel);
+	console.log(mcCommandsChannel);
 	console.log('Starting minecraft server...');
 });
+
 client.login(process.env.API_KEY);
+
+let handleChat = (message) => {
+	mcServer.stdin.write(
+		'/tellraw @a ["",{"text":"[Discord]","color":"dark_purple"}," <' +
+			message.author.username +
+			'> ","' +
+			message.cleanContent +
+			'"]\n'
+	);
+};
+
+let handleCommands = (message) => {
+	if (message.cleanContent.startsWith('/')) 
+		return mcServer.stdin.write(message.cleanContent + '\n');
+	handleChat(message);
+};
+
+let isCommandChatData = (dataContent) => {
+	// Empty server
+	if (dataContent.startsWith('No player was found')) return true;
+
+	// This indicates a system message for audit purposes afaict
+	if (dataContent.charAt(0) == '[') return true;
+
+	// Ignore system messages about logging in and out
+	if (dataContent.includes('logged in with entity id') || dataContent.includes('lost connection:')) return true;
+
+	// Ignore death messages for things like villagers
+	if (dataContent.includes('ServerLevel[')) return true;
+};
