@@ -131,7 +131,7 @@ let isCommandChatData = (dataContent) => {
 
 let backup = () => {
 	let now = new Date();
-	let night = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
+	let night = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 07, 0, 0);
 	mcServer.stdin.write(
 		'/tellraw @a ["",{"text":"[SERVER]","color":"green"},"A server backup is starting! Things might get a little laggy :)"]\n'
 	);
@@ -142,7 +142,7 @@ let backup = () => {
 	execSync(`zip -r ${now.toISOString()}.zip ../server/world/`, { cwd: '../backup/' });
 	mcServer.stdin.write('/save-on\n');
 	mcServer.stdin.write('/tellraw @a ["",{"text":"[SERVER]","color":"green"},"Backup Completed!"]\n');
-	setTimeout(backup, night.getTime() - notEqual.getTime());
+	setTimeout(backup, night.getTime() - now.getTime());
 };
 
 setTimeout(backup, 300000);
