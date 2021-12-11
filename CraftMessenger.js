@@ -2,10 +2,6 @@ require('dotenv').config();
 const { Client, MessageEmbed } = require('discord.js');
 const { spawn, execSync } = require('child_process');
 const getUUID = require('minecraft-uuid-cache');
-const { notEqual } = require('assert');
-
-console.log(process.env.API_KEY);
-
 var client = new Client();
 
 var mcChatChannel = null;
@@ -13,11 +9,31 @@ var mcCommandsChannel = null;
 var mcLoaded = false;
 
 // Start the minceraft server
-var mcServer = spawn('java -Xmx3G -Xms3G -jar *.jar nogui', {
+var mcServer = spawn('java -Xmx8G -Xms8G -jar *.jar nogui', {
 	cwd: '../server/',
 	stdio: [null, null, null],
 	shell: true,
 });
+
+client.login(process.env.API_KEY);
+
+let backup = () => {
+	let now = new Date();
+	let night = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 07, 0, 0);
+	mcServer.stdin.write(
+		'/tellraw @a ["",{"text":"[SERVER]","color":"green"},"A server backup is starting! Things might get a little laggy :)"]\n'
+	);
+	mcServer.stdin.write('/save-off\n');
+	mcServer.stdin.write('/save-all\n');
+
+	// Compress
+	execSync(`zip -r ${now.toISOString()}.zip ../server/world/`, { cwd: '../backup/' });
+	mcServer.stdin.write('/save-on\n');
+	mcServer.stdin.write('/tellraw @a ["",{"text":"[SERVER]","color":"green"},"Backup Completed!"]\n');
+	setTimeout(backup, night.getTime() - now.getTime());
+};
+
+setTimeout(backup, 300000);
 
 // Transmit to Discord
 mcServer.stdout.on('data', (data) => {
@@ -27,8 +43,8 @@ mcServer.stdout.on('data', (data) => {
 
 	// Prune timestamp
 	data = data.substring(data.indexOf(']') + 2);
-	var dataType = data.substring(0, data.indexOf(':'));
-	var dataContent = data.substring(data.indexOf(':') + 2);
+	let dataType = data.substring(0, data.indexOf(':'));
+	let dataContent = data.substring(data.indexOf(':') + 2);
 
 	// We only care about server info that has this type (generally)
 	if (!dataType.includes('[Server thread/INFO]')) return;
@@ -95,10 +111,8 @@ client.on('ready', () => {
 	mcCommandsChannel = client.channels.cache.get(`${process.env.COMMANDS_CHANNEL_ID}`);
 	console.log(mcChatChannel);
 	console.log(mcCommandsChannel);
-	console.log('Starting minecraft server...');
+	mcChatChannel.send(new MessageEmbed().setColor('#00ffff').setDescription('The server is starting'));
 });
-
-client.login(process.env.API_KEY);
 
 let handleChat = (message) => {
 	mcServer.stdin.write(
@@ -112,7 +126,7 @@ let handleChat = (message) => {
 
 let handleCommands = (message) => {
 	if (message.cleanContent.startsWith('/')) return mcServer.stdin.write(message.cleanContent + '\n');
-	handleChat(message);
+	// handleChat(message);
 };
 
 let isCommandChatData = (dataContent) => {
@@ -127,22 +141,8 @@ let isCommandChatData = (dataContent) => {
 
 	// Ignore death messages for things like villagers
 	if (dataContent.includes('ServerLevel[')) return true;
+
+	// Ignore backups
+	if (dataContent.startsWith('Automatic saving is now')) return true;
 };
 
-let backup = () => {
-	let now = new Date();
-	let night = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 07, 0, 0);
-	mcServer.stdin.write(
-		'/tellraw @a ["",{"text":"[SERVER]","color":"green"},"A server backup is starting! Things might get a little laggy :)"]\n'
-	);
-	mcServer.stdin.write('/save-off\n');
-	mcServer.stdin.write('/save-all\n');
-
-	// Compress
-	execSync(`zip -r ${now.toISOString()}.zip ../server/world/`, { cwd: '../backup/' });
-	mcServer.stdin.write('/save-on\n');
-	mcServer.stdin.write('/tellraw @a ["",{"text":"[SERVER]","color":"green"},"Backup Completed!"]\n');
-	setTimeout(backup, night.getTime() - now.getTime());
-};
-
-setTimeout(backup, 300000);
